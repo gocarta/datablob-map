@@ -1,0 +1,188 @@
+<!DOCTYPE html>
+<html>
+    <head>
+        <title>DataBlob Map</title>
+        <meta charset='utf-8'>
+        <meta name="viewport" content="width=device-width, initial-scale=1">
+        <link rel='stylesheet' href='https://unpkg.com/maplibre-gl@6.3.0/dist/maplibre-gl.css' />
+        <script src="https://unpkg.com/pmtiles@3.2.0/dist/pmtiles.js"></script>
+
+        <link rel="preconnect" href="https://fonts.googleapis.com">
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+        <link href="https://fonts.googleapis.com/css2?family=Google+Sans+Flex:opsz,wght@6..144,1..1000&display=swap" rel="stylesheet">
+        <style>
+            * {
+                font-family: "Google Sans Flex", sans-serif;
+                font-optical-sizing: auto;
+                font-weight: 300;
+                font-style: normal;
+                font-variation-settings:
+                    "slnt" 0,
+                    "wdth" 100,
+                    "GRAD" 0,
+                    "ROND" 0;
+            }
+        </style>
+
+        <style id="maplibgre-geocoder-overrides">
+            .maplibregl-ctrl-top-left {
+                z-index: 8;
+            }
+
+            .maplibregl-ctrl-top-left .maplibregl-ctrl {
+                max-width: calc(100% - 75px);
+            }
+
+            @media screen and (max-width: 640.5px) {
+                .maplibregl-ctrl-group button {
+                    height: 50px;
+                    min-width: 50px;
+                }
+            }
+
+            @media screen and (min-width: 640.5px) {
+                .maplibregl-ctrl-group button {
+                    height: 36px;
+                    min-width: 36px;
+                }
+            }
+        </style>
+        <style>
+            * {
+                box-sizing: border-box;
+            }
+
+            html {
+                bottom: 0;
+                left: 0;
+                margin: 0;
+                padding: 0;
+                position: absolute;
+                right: 0;
+                top: 0;
+            }
+
+            body {
+                bottom: 0;
+                left: 0;
+                margin: 0;
+                padding: 0;
+                position: absolute;
+                right: 0;
+                top: 0;
+            }
+
+            #map {
+                bottom: 0;
+                left: 0;
+                position: absolute;
+                right: 0;
+                top: 0;
+            }
+
+        </style>
+        <script>
+            window.app = {
+                state: {
+                    url: null
+                }
+            }
+        </script>
+    </head>
+    <body>
+        <body id="app">
+            <div id="map"></div>
+        </body>
+        <script type="module">
+            import * as maplibregl from 'https://unpkg.com/maplibre-gl@6.9.0/dist/maplibre-gl.mjs';
+
+            const protocol = new pmtiles.Protocol();
+            maplibregl.addProtocol('pmtiles', protocol.tile);
+
+            const PMTILES_URL = 'https://gocarta.s3.us-east-2.amazonaws.com/public/pmtiles/basemap.pmtiles';
+
+            const p = new pmtiles.PMTiles(PMTILES_URL);
+
+            protocol.add(p);
+
+            const map = new maplibregl.Map({
+                container: 'map',
+                zoom: 13.5,
+                center: [-85.3095658, 35.0449601],
+                style: "./style.json"
+            });
+
+            const dataset_url = new URLSearchParams(window.location.search).get("dataset_url");
+            console.log(dataset_url);
+
+            (async function init() {
+                // load metadata
+                const response = await fetch(dataset_url);
+                const metadata = await response.json();
+                console.log(metadata);
+
+                const base = dataset_url.split("/").slice(0, -1).join("/");
+
+                // check if have geojson polygons file
+                const geojson_polygons = metadata.files.find(f => f.format === "GeoJSON (Polygons)");
+                const geojson_lines = metadata.files.find(f => f.format === "GeoJSON (Lines)");
+                const geojson_points = metadata.files.find(f => f.format === "GeoJSON (Points)");
+
+                if (geojson_polygons) {
+                    const geojson_url = base + "/" + geojson_polygons.filename;
+                    map.addSource("dataset", { type: "geojson", data: geojson_url });
+                    map.addLayer({
+                        id: "dataset-fill",
+                        type: "fill",
+                        source: "dataset",
+                        paint: {
+                            "fill-color": "#FF5732",
+                            "fill-opacity": 0.5,
+                        }
+                    });
+
+                    map.addLayer({
+                        id: 'dataset-outline',
+                        type: 'line',
+                        source: 'dataset',
+                        paint: {
+                            'line-color': '#333',
+                            'line-width': 2
+                        }
+                    });
+                } else if (geojson_lines) {
+                    const geojson_url = base + "/" + geojson_lines.filename;
+                    map.addSource("dataset", { type: "geojson", data: geojson_url });
+                    map.addLayer({
+                        id: 'dataset',
+                        type: 'line',
+                        source: 'dataset',
+                        layout: {
+                            'line-join': 'round',
+                            'line-cap': 'round'
+                        },
+                        paint: {
+                            'line-color': '#888',
+                            'line-width': 8
+                        }
+                    });
+                } else if (geojson_points) {
+                    const geojson_url = base + "/" + geojson_points.filename;
+                    map.addSource("dataset", { type: "geojson", data: geojson_url });
+                    map.addLayer({
+                        id: "dataset-points",
+                        type: "circle",
+                        source: "dataset",
+                        paint: {
+                            'circle-radius': 6,
+                            'circle-color': '#FF5732',
+                            'circle-opacity': 0.6,
+                            'circle-stroke-width': 2,
+                            'circle-stroke-color': '#000'                            
+                        }
+                    });
+                }
+            })();
+        </script>
+    </body>
+</html>
